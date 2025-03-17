@@ -1,0 +1,196 @@
+---
+title: "Naive Bayes"
+author: "Sonia Khamitkar"
+date: "November 5, 2024"
+format: html
+editor: source
+self-contained: true
+toc: true
+toc-expand: true
+toc-depth: 3
+---
+
+```{r setup, include=FALSE}
+rm(list = ls()) # clears global environment
+knitr::opts_knit$set(root.dir = '/Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning/Data') 
+```
+
+# Import Data and Data Management
+
+```{r}
+df <- read.csv('MovieReviews.csv')
+
+# Make every column a factor, since they are all categorical!
+everyColumn = colnames(df)
+df[everyColumn] = lapply(df[everyColumn], factor)
+```
+
+# Partition
+
+* We will set up training partition as 60% of the data.
+
+```{r}
+set.seed(1234)
+N <- nrow(df)
+trainingSize <- round(N*0.6)
+trainingCases <- sample(N, trainingSize)
+training <- df[trainingCases,]
+test <- df[-trainingCases,]
+```
+
+
+# Build Model
+
+
+```{r}
+
+#install.packages("e1071")  
+library(e1071) #naive bayes specific model
+model <- naiveBayes(PositiveTweet ~ ., data=training) #positive is our target, using all variables 
+```
+
+
+# Predict
+
+Make predictions based on the model using test.
+
+```{r}
+predictions <- predict(model, test)
+observations <- test$PositiveTweet
+```
+
+We can also store the predictions so we can see it.
+```{r}
+test$predictions <- predict(model, test)
+#View(test)
+```
+
+
+# Evaluating Model
+
+Let's calculate the error rate and the confusion matrix and error rate.
+
+```{r}
+#Confusion Matrix
+table(predictions,observations)
+
+#Error Rate for Model
+error_rate = sum(predictions != observations)/nrow(test)
+#error_rate = 1 - sum(predictions == observations)/nrow(test)   # same as above, but just different way to calculate.
+error_rate
+# 2.82% error rate or an accuracy rate of 97.18%
+```
+
+## Benchmark Error Rate
+
+For classifiers, we calculate the benchmark error rate by using the mode of the target variable to make the predictions instead of the model. Error rate for the models should be lower than the benchmark.
+
+```{r}
+source("BabsonAnalytics.R")
+error_bench = benchmarkErrorRate(training$PositiveTweet, test$PositiveTweet)
+error_bench
+# 44.28% 
+```
+
+# Table to see probability of certain words
+
+
+# see crosstabs by row percentage
+If we want to look at probability of certain words in positive or negative review, we can look at its table.
+
+* Here, we find that Given a review is positive, 28.2% contains the word awesome.
+
+```{r}
+model$tables$awesome
+# 0.2818708609 --> Y 1 and awesome 1
+# 0.9994553377 --> Y 0 and awesome 0 --> 99.9% didn't have the word awesome and were negative 
+```
+
+# Finding the odds of something happening
+
+Given that the review contains the word "awesome", for every 1122 positive reviews there were 1 negative review.
+
+```{r}
+df_subset <- df[df$awesome == "1",] # 174 observations in the df, given that the review contains the word "awesome", getting rid of rows that don't have the word "awesome"
+odds <- sum(df_subset$PositiveTweet=="1") / sum(df_subset$PositiveTweet=="0") # did it as a fraction 
+odds # odds = p / ( 1 - p )
+``` 
+
+Given that the review contains the word "the", for every 1.5 positive reviews there were 1 negative review.
+
+```{r}
+df_subset <- df[df$the == "1",]
+odds <- sum(df_subset$PositiveTweet=="1") / sum(df_subset$PositiveTweet=="0")
+odds
+```
+
+Given that the review contains the word "terrible", there were 0 positive reviews using that word!
+
+```{r}
+df_subset <- df[df$terrible=="1",]
+odds <- sum(df_subset$PositiveTweet=="1") / sum(df_subset$PositiveTweet=="0")
+odds # numerator was 0 as the value has come out as 0 
+```
+
+
+# In Class Practice with Answers
+
+1. What's the P(Positive)?
+
+```{r}
+#P(Positive)
+table(df$PositiveTweet)
+3995/(3995+3091)
+# 56.38% is the probability of the tweet being positive 
+```
+
+
+2. What's the probability of a positive review given that the user used the word "good"?
+
+
+```{r}
+# P(Positive | "good")
+
+#One way to do this:
+df_subset <- df[df$good=="1",]
+odds <- sum(df_subset$PositiveTweet=="1") / sum(df_subset$PositiveTweet=="0")
+odds
+10.9/(10.9+1)
+
+#Another way to do this:
+df_subset <- df[df$good=="1",]
+table(df_subset$PositiveTweet)
+109/(109+10)
+
+# out of the reviews that were positive, 109 of them used the word good 
+```
+
+
+3. What are the odds of reviews using the word "awesome" to the reviews using the word "terrible"?
+
+```{r}
+
+#odds of using awesome to terrible
+odds <-  sum(df$awesome=="1")/ sum(df$terrible=="1")
+odds # 6.454 times more reviews used the word awesome instead of terrible 
+```
+
+4. Given a positive review, what is the P("awesome" and "amazing")?
+
+
+```{r}
+# Given positive, what is the P(awesome and amazing)?
+df_subset <- df[df$awesome=="1" & df$amazing=="1",]
+odds <- sum(df_subset$PositiveTweet=="1") / sum(df_subset$PositiveTweet=="0")
+odds
+# there are no negative tweets here = NaN 
+
+df_subset <- df[df$PositiveTweet=="1",]
+prob <-  (sum(df_subset$awesome=="1" & df_subset$amazing=="1")) / nrow(df_subset)
+prob
+
+# Double Check
+table(df_subset$awesome,df_subset$amazing)
+```
+
+

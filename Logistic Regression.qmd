@@ -1,0 +1,161 @@
+---
+title: "QTM 6300: Assignment 4"
+author: "Sonia Khamitkar"
+date: "October 2024"
+format: html
+editor: source
+self-contained: true
+toc: true
+toc-expand: true
+toc-depth: 3
+---
+
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_knit$set(root.dir = 'C:Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning')
+
+```
+
+# Context
+
+Let’s take a look at the data located in ebayAuctions.csv. Each row represents an auction, with the columns specifying various auction characteristics, including information about the seller (SellerRating) and the item (Category). Our goal here is to predict whether the auction will turn out to be competitive (Competitive), here defined as receiving 2 or more bids. This type of prediction is crucial for any type of automated trading algorithm, as we would like to find auctions with relatively little competition in the hopes of getting a better final price.
+
+
+# Import Data and Data Management
+
+1. We’ll be trying predict competitiveness (use the Competitive variable as the target) using a logistic regression model. To get ready for modeling, complete the following data management steps:
+
+* Since we’re thinking about making our predictions of competitiveness at the beginning of the auction, we can really in good faith use ClosePrice; remove it from the data frame.
+
+* Convert the target to a logical.
+
+* Convert other variables to factors as necessary.
+
+* Partition the data using a 60-40 training-test split using random seed 1234.
+
+
+```{r}
+df <- read.csv("eBayAuctions.csv") #I had to do the thing where I place Data in front of the file name because it wouldn't open normally again
+eBay = read.csv("Data/eBayAuctions.csv") #just renamed it to eBay
+eBay$ClosePrice <- NULL #NULL removes the variable form the frame
+eBay$Competitive <- as.logical(eBay$Competitive) #logical made it T/F
+eBay$Currency <- as.factor(eBay$Currency) #factor because there's 3 levels
+eBay$Category <- as.factor(eBay$Category) #factor because there's 18 levels
+eBay$EndDay <- as.factor(eBay$EndDay) #factor because there's 7 levels
+```
+
+# Partition
+
+2. Please set up training partition as 60% of the data, and test data as the rest.
+
+```{r}
+set.seed(1234)
+N <- nrow(eBay)
+trainingSize <- round(N*0.6)
+trainingCases <- sample(N, trainingSize)
+training <- eBay[trainingCases,]
+test <- eBay[-trainingCases,]
+```
+
+
+# Build Model
+
+3. Construct a logistic regression model for Competitive as a function of all other available variables. Afterwards, create a new model by conducting backward stepwise variable elimination. We'll be using this smaller and more efficient model for the remainder of the questions here. 
+
+
+```{r}
+model <- glm(Competitive ~ ., data=training, family=binomial)
+summary(model)
+
+model2 <- step(model)
+summary(model2)
+```
+
+# Interpret
+
+4. Try to interpret the coefficient for Duration.
+
+Answer: The negative duration coefficient of -0.1035 indicates that the chances of the auction being competitive drop by about 10.35% for every day (duration) added. Given that the model is a logistic regression, the coefficient is interpreted as odds. Thus, the probability of the auction being competitive decline by 9.8% for every 1-day increase in the auction period, leaving all other variables constant.
+
+5. Try to interpret the coefficient for CurrencyGBP. Note that this variable is a dummy for Currency being British Pounds.
+
+Answer: In comparison to the benchmark currency (such as USD), the log-odds of the auction being competitive rise by 1.429 when the currency is GBP. When the currency is in GBP as opposed to the benchmark currency (such as USD), the chances of an auction being competitive are about 4.18 times higher. As a result, auctions held in GBP have a far higher chance of being competitive than those held in the selected currency.
+
+
+# Evaluating Model
+
+6. Using a cut-off probability of 0.5, what is the error rate associated with your model? Use R to calculate it. 
+
+Answer:
+
+
+```{r}
+# store probabilities
+test$predictions <- predict(model2, test, type="response")
+predictions <- test$predictions
+
+#store True/Falses
+test$predictionsTF <- (test$predictions >= 0.5)
+predictionsTF <- test$predictionsTF #stored in vector called predictionsTF
+
+# store observed values too
+observations <-test$Competitive
+```
+
+## Error Rate
+
+7. Show the confusion matrix. Then, calculate the error rate manually by using R as a calculator using the numbers shown in the confusion matrix. Make sure this is the same as your previous error rate calculation in R!
+
+```{r}
+#Confusion Matrix
+table(predictionsTF, test$Competitive)
+
+error_rate <- sum(predictionsTF != observations)/nrow(test)
+error_rate #36.2% error rate
+```
+
+## Benchmark Error Rate
+
+8. What is the Benchmark Error Rate? Does this show to be a useful model?
+
+Answer: With my model, I found that 36.4% of my predictions were wrong. The benchmark error rate I got was 47.7% which means that because my model's error rate is smaller than the benchmark's my model performs better and has more predictive power.  
+
+```{r}
+source("BabsonAnalytics.R") #professor said to use this R file
+error_bench <- benchmarkErrorRate(training$Competitive, test$Competitive)
+error_bench
+```
+
+
+# Sensitivity and Specificity
+
+9. Calculate the sensitivity and specificity for the default cutoff probability (which is 0.5).
+
+Answer:
+
+```{r}
+sensitivity <- sum(predictionsTF == TRUE & observations == TRUE)/sum(observations == TRUE)
+sensitivity
+
+specificity <- sum(predictionsTF == FALSE & observations == FALSE)/sum(observations == FALSE)
+specificity
+
+#72.88% for sensitivity is good because it means that the model is good at identifying competitive auctions. 
+#However, 53.72% for specificity is not great because it means that the model may get a higher amount of false positives aka saying an auction is competitive when it's not
+```
+
+
+# ROC Chart
+
+10. Imagine we now increase the cut-off probability from 0.5 to 0.6. Does the specificity increase or decrease? How do you know?
+
+Answer: 
+
+11. Using the ROC Chart, does it show that the model is more or less useful than the benchmark? How do you know?
+
+```{r}
+ROCChart(observations, predictions)
+
+# The model is showing that it is less useful. 0.68 for AUC shows that while the model has some predictive power, it's not strong enough. There is still room for improvement as the curve is far from the ideal line.
+```

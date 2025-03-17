@@ -1,0 +1,316 @@
+---
+title: "Assignment 5: kNN Regression and Classification"
+author: "Sonia Khamitkar"
+date: "October 14, 2024"
+format: html
+editor: source
+self-contained: true
+toc: true
+toc-expand: true
+toc-depth: 3
+---
+
+
+```{r setup, include=FALSE}
+# Clear global environment and load data
+rm(list = ls())
+knitr::opts_knit$set(root.dir = '/Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning/Data') # this is the correct working directory
+```
+
+# Context
+
+Let’s take a look at the data located in UniversalBank.csv. Each row represents a customer at small but rapidly growing bank. The columns measure all sorts of customer characteristics, ranging from their demographic information (e.g., Age, Family) to whether they currently have various accounts open with the bank (e.g., Securities Account, CD Account). For a complete description of the fields, consult the data page on Canvas.
+
+There are two characteristics of customers that would be used for the company to predict.
+
+Task 1. First, the bank would like to predict a customer's Mortgage amount (the "Mortgage" variable.) The bank would like a model to make an educated prediction on income so that they may target customers with appropriate marketing.
+
+Task 2. Secondly, the bank is aggressively trying to convert customers from depositors into borrowers through its personal loan program. The column **Personal Loan** shows whether each customer responded to a direct marketing campaign related to this program. The marketing team is now trying to understand what types of customers responds to new personal loans marketing. If they can establish reasonably strong predictive power, they will deploy the model more widely across their customer base to identify promising leads and a more nuanced target market.
+
+
+# Task 1: Predicting Mortgage Amount
+
+## Question 1
+
+Do the following:
+
+* Import the data as "bank"
+
+* Remove all non-numeric variables from the data frame. Anything that feels more categorical than numeric should be nulled out. This is because in kNN, we cannot use any variable as predictors when we have difficulty calculating the distance. I would also say that anything that doesn't make sense as a numeric value (like Zip Code), or something that should not be predictive (like ID) of the dependent variable, should also be nulled out.
+
+
+```{r}
+bank <- read.csv('UniversalBank.csv') # I am still unable to pull from my Data Folder so I have to write it like this
+bank$Education <- NULL
+bank$Personal.Loan <- NULL
+bank$Securities.Account <- NULL
+bank$CD.Account <- NULL
+bank$Online <- NULL
+bank$CreditCard <- NULL
+bank$ZIP.Code <- NULL
+bank$ID <- NULL
+```
+
+
+## Question 2
+
+* Set a seed of 72 and partition a training set with 55% of the data.
+
+```{r}
+set.seed(72)
+N <- nrow(bank)
+trainingSize <- round(N*0.55)
+trainingCases <- sample(N, trainingSize)
+training <- bank[trainingCases,]
+test <- bank[-trainingCases,]
+```
+
+
+## Question 3
+
+* Build a kNN regression model using standardized features ("independent variables") to predict Mortgage in R. Set it up so that you are using the four closest neighbors for the predictions.
+
+```{r}
+#install.packages("caret")
+library(caret)
+model <- knnreg(Mortgage ~ ., data=training, k=4, preProcess=c("center","scale")) 
+```
+
+## Question 4
+
+Apply the model to the test data frame. Then, store the predicted values in both the object "predictions" and within the test data frame so you can clearly see what the predictions are when you view the data frame.
+
+```{r}
+predictions <- predict(model, test, type="class")
+test$predictions <- predict(model, test, type="class")
+#View(test)
+```
+
+## Question 5
+Evaluate the model. Calculate the MAPE and the RMSE. What are they? Interpret each of the them.
+
+```{r}
+# Store the observed Mortgage values and get the errors between observed and predictions 
+observations <- test$Mortgage
+errors <- observations - predictions
+
+#MAPE
+mape <- mean(abs(observations-predictions)/observations)
+mape
+
+#RMSE
+rmse <- sqrt(mean((observations-predictions)^2))
+rmse
+```
+
+
+## Question 6
+In one sentence, interpret the MAPE from the last question using the appropriate units. (Note: It is possible that you received a MAPE that is NaN or Inf, or basically incalculable. If you do, I will provide extra credit IF you can *clearly* explain why it is incalculable. Try to think about the MAPE equation and also take a look at the data.))
+
+Answer: When there are zero values in the data, the MAPE algorithm frequently encounters a problem with obtaining NaN (real values of Mortgage). An NaN (Not a Number) value is produced when an observed value is zero and is divided by zero. A NaN MAPE indicates that there may be zero Mortgage values in the certain test data. This may indicate that some of the clients or businesses in the database are not mortgage holders (i.e., they did not obtain a mortgage loan).
+
+## Question 7
+In one sentence, interpret the RMSE from Question 6 using the appropriate units.
+
+Answer: This is about 110.26 which is about $110.26 Root Mean Square Error. This means that if we use the mean instead of the model to predict the Mortgage price, we would be about $110.26 off on average. 
+
+## Question 8
+Calculate the benchmark MAPE and RMSE when using the mean as the prediction. Is your model useful? Why or why not?
+
+Answer: 
+
+```{r}
+# Store the observed values subtracted by average of Mortgage
+errors_bench <- observations - mean(training$Mortgage)
+
+# What is the mape compared to benchmark
+mape_bench <- mean(abs(errors_bench)/observations)
+mape_bench
+# An infinite, or Inf, value for MAPE indicates that there were several instances where the perceived mortgage value was zero during the math. This indicates that because there are zero mortgage values in the above data set, this model's MAPE analysis is not appropriate. When a file contains zero values, MAPE is not the ideal metric since it evaluates relative errors, or errors compared to the quantity of the observed values.
+
+rmse_bench <- sqrt(mean(errors_bench^2))
+rmse_bench
+# An RMSE value of 101.6465 indicates that there is a typical deviation of roughly 101.65 dollars between the actual and anticipated mortgage values. It suggests that although the model has some prediction error, it is less susceptible to the problem of zero values than MAPE.
+```
+
+
+# Task 2: Predicting Personal Loan Offer Acceptance
+
+## Question 9
+
+We will now turn our attention to creating a kNN Classification model to predict whether a customer would accept a personal loan offer. Make sure your code is in the following order:
+
+* First, let's clear the global environment to make sure we don't confuse our previous data and model with this one.
+
+* Second, Import the data as "bank" once again.
+
+* Third, remove all non-numeric variables from the data frame except the target variable. Anything that feels more categorical than numeric should be nulled out. This is because in kNN, we cannot use any variable as predictors when we have difficulty calculating the distance. I would also say that anything that doesn't make sense as a numeric value (like Zip Code), or something that should not be predictive (like ID) of the dependent variable, should also be nulled out.
+
+* Fourth, convert the target variable to a factor
+
+* Fifth, standardize all the numeric predictors.
+
+* Sixth, set a seed of 72 and partition a training set with 55% of the data once again.
+
+```{r}
+# clearing global environment, importing bank dataset
+rm(list = ls())
+#knitr::opts_knit$set(root.dir = 'C:Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning')
+bank = read.csv('UniversalBank.csv') # I am still unable to pull from my Data Folder so I have to write it like this
+
+# removing all non numeric variables
+bank$Education <- NULL
+bank$Securities.Account <- NULL
+bank$CD.Account <- NULL
+bank$Online <- NULL
+bank$CreditCard <- NULL
+bank$ZIP.Code <- NULL
+bank$ID <- NULL
+
+# converting target to factor variable
+bank$Personal.Loan <- as.factor(bank$Personal.Loan)
+
+#classification standardization
+library(caret) # preProcess() function requires package 'caret'.
+standardizer <- preProcess(bank, c("center","scale")) 
+bank <- predict(standardizer, bank)
+
+# set seed of 72, training set of 55%
+set.seed(72)
+N <- nrow(bank)
+trainingSize <- round(N*0.55)
+trainingCases <- sample(N, trainingSize)
+training <- bank[trainingCases,]
+test <- bank[-trainingCases,]
+```
+
+## Question 10
+
+* Train the kNN classification model using all available numeric inputs, using the four closest neighbors to make a prediction. Make sure to standardize your predictors.
+
+```{r}
+model <- knn3(Personal.Loan ~ ., data = training, k = 4)
+predictions <- predict(model, test, type = "class")
+test$predictions <- predictions
+```
+
+
+## Question 11
+
+Create the confusion matrix to see the errors. 
+
+```{r}
+# Evaluation
+observations <- test$Personal.Loan
+error_rate <- sum(predictions != observations)/nrow(test)
+error_rate
+
+# confusion matrix
+table(predictions, observations)
+```
+
+## Question 12
+
+How many total predictions did the model get correct? (Not percentage)
+
+Answer: The model got 2,081 predictions correct, specifically 1989 True Negatives and 92 True Positives
+
+```{r}
+# Total Correct = TP + TN which is 1989 + 92 which is 2081 
+1989 + 92
+```
+
+
+## Question 13
+
+How many total predictions did the model get incorrect? (Not percentage)
+
+Answer: The model got 169 predictions incorrect, specifically 49 False Positives and 120 False Negatives
+
+```{r}
+# Total Correct = FP + FN which is 49 + 120 which is 169 
+49 + 120
+```
+
+
+## Question 14
+
+Manually calculate the error rate (according to numbers you received in the confusion matrix. Show calculations using R as a calculator.
+
+Answer: The error rate is 7.51%
+
+```{r}
+# Assigning the values
+TN <- 1989
+FP <- 49
+FN <- 120
+TP <- 92
+
+# Formulas to solve them 
+total_predictions <- TN + FP + FN + TP
+total_incorrect <- FP + FN
+error_rate <- total_incorrect / total_predictions
+
+# Show each answer
+total_predictions
+total_incorrect
+error_rate
+```
+
+
+
+## Question 15
+
+Now, Calculate the error rate using R code. Make sure your manual calculation is correct.
+
+```{r}
+error_rate <- sum(predictions != observations) / nrow(test)
+error_rate
+```
+
+
+## Question 16
+
+Calculate the benchmark error rate. You can do this using code. (Note that, however- for practice- you should also be able to get the same benchmark error rate using the confusion matrix!)
+
+Answer: 0.09422222 or 9.42%
+
+```{r}
+# benchmarkErrorRate lives inside BabsonAnalytics.R
+source('BabsonAnalytics.R')
+error_bench <- benchmarkErrorRate(training$Personal.Loan, test$Personal.Loan)
+error_bench
+```
+
+
+## Question 17
+
+Is your error rate for the model better than the benchmark?
+
+Answer: My model predicted a 7.51% error rate in comparison to the benchmark model's error rate of 9.42%. Thus my model is better than the benchmark
+
+
+## Question 18
+
+Calculate the sensitivity. You can use either code or the confusion matrix to do so manually.
+
+Answer: 43.40%
+
+
+```{r}
+sensitivity <- TP / (TP + FN)
+sensitivity
+```
+
+
+## Question 19
+
+Calculate the specificity. You can use either code or the confusion matrix to do so manually.
+
+Answer: 97.56%
+
+```{r}
+specificity <- TN / (TN + FP)
+specificity
+```
+

@@ -1,0 +1,190 @@
+---
+title: "Assignment 6: CART"
+author: "Sonia Khamitkar"
+date: "October 2024"
+format: html
+editor: source
+self-contained: true
+toc: true
+toc-expand: true
+toc-depth: 3
+---
+
+
+```{r setup, include=FALSE}
+rm(list = ls()) # clears global environment
+knitr::opts_knit$set(root.dir = '/Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning/Data') 
+```
+
+# Context
+
+Let’s take a look at the data located in ToyotaCorolla.csv. Each row represents a used car, with the collection of columns ranging from a fairly detailed model name (Model) to performance characteristics like horsepower (HP), and engine size (cc). Our goal here is to predict the numeric target Price. You can imagine several different applications for this sort of algorithm. Perhaps work for an insurance company, and are dissatisfied with the industry standard car value estimates, or perhaps you want to make money at auto auctions by bidding on cars that you think are currently significantly undervalued.
+
+The first model that pops to mind for this type of problem is likely linear regression, and that’s not bad intuition. After all, linear regression is a simple and often powerful technique that has the potential to tell us a lot about our problem. At the same time, it, by its very nature, forces us into a very particular worldview – namely that the target and every input are related linearly. This is a bold claim, and one that is often simply not true. Trees, on the other hand, try to uncover the relationship between the most important inputs and the target, whatever form they might take.
+
+
+# Question 1
+
+To get ready for modeling, complete the following data management steps:
+
+* Import the data and call it "df".
+
+* Remove the variable "Model." This should have no predictive power given the subtle differences between the same brand of car.
+
+* Convert variables to factors, if necessary. Note that predictors in CART can be either categorical or numeric.
+
+* Partition the data using a 60-40 training-test split using random seed 1234. 
+
+```{r}
+#insert code
+df <-read.csv("ToyotaCorolla.csv")
+df$Model <- NULL
+#View(df) # wanted to see how dataset to figure out the potential factor variables
+
+#convert variables to factors
+df$Fuel_Type <- as.factor(df$Fuel_Type)
+df$Automatic <- as.factor(df$Automatic)
+df$Met_Color <- as.factor(df$Met_Color)
+df$Doors <- as.factor(df$Doors)
+
+#partition data
+set.seed(1234)
+N <- nrow(df)
+trainingSize <- round(N*0.6)
+trainingCases <- sample(N, trainingSize)
+training <- df[trainingCases,]
+test <- df[-trainingCases,]
+```
+
+
+# Question 2
+Build your CART model using all available predictors to predict Price. Use default stopping rules. Also ask R to display the resulting tree using rpart.plot. When doing so, add digits=-2 as an option/parameter within your rpart.plot() function if you wish to remove scientific notation, such as rpart.plot(model, digits=-2).
+
+
+```{r}
+#insert code
+library(rpart)
+library(rpart.plot)
+model <- rpart(Price ~ ., data=training) # Price is our target using the other variables to figure it out
+rpart.plot(model, digits=-2) #plotting out model
+```
+
+# Question 3
+In class, each node contained three numbers. In your tree for Question 2, you should only see two numbers in each node. What is missing and why do you think that is?
+
+Answer: We are missing the Percent Target Value 1. The reason why could be because no matter what a car will always have a price and will never be for free. 
+
+# Question 4
+In examining your tree from Question 2, if a car is 72 months old and has been driven 102,000 km, what is the predicted price? Note that the Age variable is in months and KM variable is in kilometers. Price is in Euros.
+
+Answer: The price is 7,949 euros
+
+# Question 5
+What would the price of a 50-month-old car with 20 thousand kilometers on the odometer be according to your regression tree with default stopping rules? Price is in Euros.
+
+Answer: The price is 11,656 euros
+
+# Question 6
+Calculate the MAPE and RMSE for your model. Interpret each of them in context.
+
+```{r}
+#insert code
+predictions <- predict(model, test)
+observations <- test$Price
+errors <- observations - predictions
+
+#MAPE
+mape <- mean(abs(observations-predictions)/observations)
+mape 
+# On average, the model’s predictions are off by 10.67% from the actual car prices
+
+#RMSE
+rmse <- sqrt(mean((observations-predictions)^2))
+rmse
+# On average, the predicted prices differ by approximately 1496.33 Euros from the actual car prices
+```
+
+# Question 7
+What is the benchmark MAPE and RMSE associated with this model? Is your model useful?
+
+Answer: 
+
+```{r}
+#insert code
+errors_bench <- observations - mean(training$Price)
+
+mape_bench <- mean(abs(errors_bench) / observations) * 100
+mape_bench
+
+rmse_bench <- sqrt(mean(errors_bench^2))
+rmse_bench
+# Yes my model is more useful than the benchmark because I have lower MAPE and RMSE values which means there's a smaller deviation betweenn the predictions made
+```
+
+# Question 8
+You ran a model with the following parameters:
+
+* minsplit=50,minbucket=20, cp=0.05
+
+Your friend ran a model with the following parameters:
+
+* minsplit=2,minbucket=1, cp=0.001
+
+Do not run the models right now. Which model is more likely to be overfit, and why?
+
+
+Answer: Due to her constant tree splitting, which might introduce noise into the training data, my friend's model is more overfit. A model with low minsplit, minbucket, and cp values may not translate well to newly collected data.
+
+# Question 9
+Now run the two models from Question 8 using those parameters and calculate the MAPE for both models. Do the MAPE align with your hypothesis on which model is more likely to be overfit? Why? 
+
+Answer: Yes the MAPE aligns with my hypothesis. Model 1 which was mine had a MAPE of 13.03% which is more reliable for future predictions in comparison to Model 2 which was my friend's model which had a MAPE of 9.94%, which is likely overfit due to its low complexity parameters.
+
+```{r}
+#insert code 
+#i am model 1
+model1 <- rpart(Price ~ ., data=training, control=rpart.control(minsplit=50, minbucket=20, cp=0.05))
+rpart.plot(model1, digits=-2)
+predictions1 <- predict(model1, test)
+observations <- test$Price
+mape1 <- mean(abs(observations - predictions1) / observations) * 100
+mape1
+
+# my friend is model 2
+model2 <- rpart(Price ~ ., data=training, control=rpart.control(minsplit=2, minbucket=1, cp=0.001))
+rpart.plot(model2)
+predictions2 <- predict(model2, test)
+observations <- test$Price
+mape2 <- mean(abs(observations - predictions2) / observations) * 100
+mape2
+```
+
+
+# Question 10
+
+Now, try to take your "overfitted" model and prune it. Calculate the MAPE for this pruned model and compare the MAPE to the MAPE of the "overfitted" model. What do you find? What might this say about our "overfitted" model?
+
+Answer:
+
+```{r}
+#insert code
+source("BabsonAnalytics.R")
+pruned <- easyPrune(model2)
+rpart.plot(pruned)
+rpart.plot(model2)
+
+predictions2 <- predict(pruned, test)
+observations <- test$Price
+
+mape2 <- mean(abs(observations - predictions2) / observations) * 100
+# comparing again
+mape2
+mape1
+```
+
+# Question 11
+A friend of yours used a different random seed for their partition and has some confusing results. Your friend computed the MAPE for the default model and then pruned the model, finding that the two MAPE numbers matched almost exactly. Your friend has plotted both trees and confirmed that the the pruning is actually doing something, i.e., branches are actually being removed from the tree. 
+
+Can this be possible? Or is your friend making a mistake somewhere in the MAPE computation? Make a concrete argument one way or the other. You may cite specific properties of model performance, overfitting properties, or something else in order to make your case. 
+
+Answer: There is a possibility of the MAPES being the same even after doing pruning. Pruning removes unnecessary complexity without significantly affecting accuracy. By pruning, the not pruned model was able to become less overfit and more simple even though the new data's prediction accuracy stayed the same which also explains why there's no mistake in the two MAPEs calculation. In this case, the similar MAPE values indicate that the pruned model is more efficient and less prone to overfitting.

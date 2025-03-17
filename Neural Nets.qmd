@@ -1,0 +1,156 @@
+---
+title: "Assignment 9: Neural Nets"
+author: "Sonia Khamitkar"
+date: "11/20/2024"
+format: html
+editor: source
+self-contained: true
+toc: true
+toc-expand: true
+toc-depth: 3
+---
+
+```{r setup, include=FALSE}
+rm(list = ls()) # clears global environment
+knitr::opts_knit$set(root.dir = '/Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning/Data') 
+```
+
+# Context
+
+Let’s take a look at the data located in UniversalBank.csv. Each row represents a customer at small but rapidly growing bank. The columns measure all sorts of customer characteristics, ranging from their demographic information (e.g., Age, Family) to whether they currently have various accounts open with the bank (e.g., Securities Account, CD Account). For a complete description of the fields, consult the data page on Canvas.
+
+The bank is aggressively trying to convert customers from depositors into borrowers through its personal loan program. The column **Personal Loan** shows whether each customer responded to a direct marketing campaign related to this program. The marketing team is now trying to understand what types of customers responds to new personal loans marketing. If they can establish reasonably strong predictive power, they will deploy the model more widely across their customer base to identify promising leads and a more nuanced target market.
+
+
+# Task 1: Predicting Mortgage Amount
+
+## Question 1
+
+Do the following:
+
+* Import the data as "bank"
+
+* Remove any predictor that might be inappropriate for this activity.
+
+* Set the target to a factor.
+
+```{r}
+bank = read.csv("UniversalBank.csv")
+bank$ID <- NULL  # doesn't affect customer behavior
+bank$ZIP.Code <- NULL  # doesn't affect customer behavior
+bank$Personal.Loan = as.factor(bank$Personal.Loan) # target to factor
+```
+
+## Question 2
+
+* Given the fact that most activation functions are nonlinear, standardizing is an important step towards making sure no one variable swamps all of the others.
+
+Standardize all of the numeric inputs for this data set (e.g., using preProcess from the caret package). 
+
+Note: During class, we normalized our variable. This time, we want to standardize! We have done this in the past!
+
+To verify that this process has gone well, enter the maximum value of the standardized version of the Income variable below. Round your answer to two decimal places.
+
+Answer: The maximum value of the standardized version of the Income variable is 3.263385
+
+```{r}
+library(caret)
+standardizer <- preProcess(bank, c("center","scale"))
+bank <- predict(standardizer, bank)
+max(bank$Income)
+```
+
+## Question 3
+
+Write a short sentence putting describing what the quantity you found in the previous question (Q3) means.
+
+Answer: The largest value of the standardized Income varaible shows how the highest income in the dataset is around 3.26 standard deviations away from the mean
+
+
+## Question 4
+
+* Set a seed of 28 and partition a training set with 70% of the data.
+
+```{r}
+set.seed(28)
+N <- nrow(bank)
+trainingSize <- round(N*0.7)
+trainingCases <- sample(N, trainingSize)
+train <- bank[trainingCases, ]
+test <- bank[-trainingCases, ]
+```
+
+
+## Question 5
+
+Build a neural net model with a hidden layer of size 4, and plot it using the plotnet function from the NeuralNetTools package. Notice how bad this default plotting is. Really, really subpar. Now plot with the fix (originally posted here: https://github.com/fawda123/NeuralNetTools/issues/20).
+
+par(mar = numeric(4))
+plotnet(model,pad_x = .5)
+
+What was the difference between the original and the fixed versions?
+
+Answer: The fixed graph has a more sharper line between the layers, making it easy to differentiate between the degree of association and relationship. One further problem is that the labels are not as tightly packed in the fixed one.
+
+```{r}
+#install.packages("nnet")
+#install.packages("NeuralNetTools")
+library(nnet)
+library(NeuralNetTools)
+model = nnet(Personal.Loan ~ ., data=train, size = 4)
+plotnet(model)
+
+par(mar = numeric(4))
+plotnet(model,pad_x = .5)
+```
+
+
+## Question 6
+
+What can we learn about what types of customers accept personal loan offers by visualizing examining the neural net you've created? (i.e., what did we say in class from looking at this visual?)
+
+Answer: The neural network graphic illustrates how several customer characteristics affect a person's propensity to accept a personal loan offer. The significance of these factors in the model's projected outcomes is shown by stronger relationships between input nodes (such as income and education) and hidden layer nodes. Complex linkages, including those between mortgage, CCAvg, and family size, are captured by the hidden layer. These patterns are combined by the output node to forecast acceptance. This image shows how the model handles consumer data comprehensively and aids in identifying important predictive characteristics.
+
+
+## Question 7
+
+Take a look at your confusion matrix. Also, calculate the error rate and benchmark error rate. How many predictions did you get correct from the model? What is the error rate associated with your model? Is this a useful model?
+
+Answer: The number of predictions correct are 1346 + 116 which is 1462. The error rate associated with this model is 2.53%. The benchmark error rate is 8.93% so my model is better, not the benchmark's. 
+
+```{r}
+# make predictions
+pred = predict(model, test, type="class")
+
+# See confusion matrix
+table(pred,test$Personal.Loan)
+
+# calculate error rate
+error_rate = sum(pred != test$Personal.Loan)/nrow(test)
+
+#calculate benchmark error rate
+source("BabsonAnalytics.R")
+error_bench = benchmarkErrorRate(train$Personal.Loan, test$Personal.Loan)
+```
+
+## Question 8
+
+One could make the argument that we care very much about predicting the True observations correctly in this model. What is sensitivity of this model? Round your answer to two decimal places, e.g., 0.12
+
+Also, how does this rate - essentially an accuracy rate - compare with the error rate you obtained previously? What is the issue with this if predicting True's accurately was really important to you in this context?
+
+Answer: The sensitivity of this model is 86.57%. Compared to my error rate of 2.53%, the model's low error rate may conceal incorrectly categorizing False negatives, despite its high sensitivity (86.57%), which means it detects the majority of True Positives. To guarantee a balanced performance, it's critical to examine additional measures, such as accuracy, if forecasting True values is essential.
+
+```{r}
+sensitivity <- 116 / (116+18)
+sensitivity
+```
+
+
+## Question 9
+
+What happens if you don't standardize? Turn off standardization and re-run your neural network(i.e., Just use hashtags to comment out a couple lines in your code and re-run everything). You will likely get an error if you try to compute the error rate, so just look at the misclassification table instead. What do you see? What you do think happened here?
+
+After you answer this question, just make sure to un-comment your lines of code before knitting.
+
+Answer: What I observe is that 134 True instances were incorrectly categorized as 0 since the model accurately forecasted 1366 cases as 0 (True Negatives) but failed to identify any as 1 (False Positives and False Negatives).This most likely occurred as a result of the input variables' lack of standardization. The procedure of learning is dominated by variables with higher scales in the absence of standardization, which causes the algorithm to do poorly and have trouble identifying the minority class (1). This leads to a bias in favor of always forecasting 0.

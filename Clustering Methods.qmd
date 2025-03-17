@@ -1,0 +1,206 @@
+---
+title: "Assignment 10: Clustering"
+author: "Sonia Khamitkar"
+format: html
+editor: source
+self-contained: true
+toc: true
+toc-expand: true
+toc-depth: 3
+---
+
+```{r setup, include=FALSE}
+rm(list = ls()) # clears global environment
+knitr::opts_knit$set(root.dir = '/Users/soniakhamitkar/Desktop/Babson Grad/Machine Learning/Data') 
+```
+
+
+# Context
+
+You have salary and compensation data for a set of public employees in San Francisco in Employee_Compensation_SF.csv. This data set includes the following variables for salary in 2016:
+
+Employee Identifier: Unique ID for each employee
+Organization: Organization within San Francisco's government
+Department: Department within Orgniaztion
+Union: Union abbreviation
+Job Family: Type of job
+Job: Job Title
+Salary: Annual Salary (in $USD)
+Overtime: Overtime Salary (in $USD)
+Other Salaries: Other Salary, which could include contractor salary, one-time bonuses, extra work taken on, etc.  (in $USD)
+Total Salary: Sum of three salary numbers (in $USD)
+Retirement: Amount paid into retirement (in $USD)
+Health/Dental: Amount paid into Health/Dental (in $USD)
+Other Benefits: Other Benefits, such as dependent care, FSA, etc. (in $USD)
+Total Compensation: Total Compensation, including salaries and benefits (in $USD)
+
+
+
+## Question 1
+
+Do the following:
+* Import the data.
+* Remove all inappropriate variables for k-means clustering
+* Remove any rows with missing values
+* Standardize your remaining variables
+
+```{r}
+employees <- read.csv("Employee_Compensation_SF.csv") # importing dataset
+
+# removing unnecessary values
+employees$Employee.Identifier <- NULL
+employees$Organization.Group <- NULL
+employees$Department <- NULL
+employees$Union <- NULL
+employees$Job.Family <- NULL
+employees$Job <- NULL
+
+# removing missing values
+employees <- na.omit(employees)
+
+# standardizing
+library(caret)
+standardizer <- preProcess(employees,method = c("scale","center")) 
+employees <- predict(standardizer, employees)
+```
+
+
+
+## Question 2
+
+Use ggplot to plot the relationship between Total Salary and Total Benefits. What is the relationship between the two variables?
+
+Answer: There is a positive correlations between the two variables - as salary increases, benefits also increase. However, there is also some variability as there are a few outliers particularly at higher salaries.
+
+```{r}
+library(ggplot2)
+ggplot(employees, aes(x = Total.Salary, y = Total.Benefits)) +
+  geom_point(alpha = 0.6) +  
+  geom_smooth(method = "lm", color = "blue", se = FALSE) + # wanted to see a trend line out of curiosity 
+  labs(
+    title = "Relationship Between Total Salary and Total Benefits",
+    x = "Total Salary (in $USD)",
+    y = "Total Benefits (in $USD)"
+  ) +
+  theme_minimal()
+```
+
+
+## Question 3
+
+Now, we want to do k-means clustering. Before we do, create an Elbow Chart. What would you argue is the "best" number of k?
+
+Answer: The best number of k is 3 because in this chart, the Within Cluster Sum of Squares starts to decrease slowly after k = 3. Basically adding more clusters beyond k = 3 will provide minimal benefit in terms of decreasing the WSS.
+
+
+```{r}
+comp_data <- employees[, c("Total.Salary", "Total.Benefits")]
+source('BabsonAnalytics.R')
+elbowChart(comp_data)
+```
+
+
+## Question 4
+
+Now, run a k-means clustering. Use 4 as the number of clusters. Given the size of the data set, feel free to use nstart = 10, as this will lower computational time. 
+
+```{r}
+set.seed(1234)
+model <- kmeans(comp_data, centers=4, nstart=10)
+```
+
+
+## Question 5
+
+Take a look at the cluster size and centers. How would you describe each of your clusters? What seems to distinguish each cluster from the others? Also, which cluster is the largest?
+
+Answer: In order of largest to smallest sized clusters, Cluster 4 comes first, Cluster 1 2nd, Cluster 3 3rd, and Cluster 4 is the smallest, and the size is determined by the values that fall into that specific cluster with the centers of each cluster being mentioned below with respect to their coordinates on x-axis=Total.salary and y-axis=Total.benefits.
+
+```{r}
+# cluster size and center
+model$size
+model$centers
+```
+
+## Question 6
+
+Bind the clusters with the data frame. Use this new data frame to create a plot with Total Salary and Total Benefits. Make sure each cluster is a different color on your graph.
+
+```{r}
+comp_clusters <- cbind(employees, cluster = model$cluster)
+#View(compensation_clusters)
+
+summary(comp_clusters[comp_clusters$cluster == 1, ])
+summary(comp_clusters[comp_clusters$cluster == 2, ])
+summary(comp_clusters[comp_clusters$cluster == 3, ])
+summary(comp_clusters[comp_clusters$cluster == 4, ])  
+
+model$cluster <- as.factor(model$cluster)
+ggplot(comp_data,aes(x=Total.Salary,y=Total.Benefits,col=model$cluster)) +
+  geom_point()
+```
+
+
+## Question 7
+
+Now, let's run hierarchichal clustering. Do the following:
+* Import the raw data into R again.
+* Keep only three columns: Employee Identifier, Total Salary, and Total Benefits.
+* Standardize your variables.
+
+```{r}
+rm(list = ls()) # clears global environment
+raw_data <- read.csv("Employee_Compensation_SF.csv")
+
+# Keeping Employee Identifier, Total Salary, and Total Benefits.
+hier_data <- raw_data[, c("Employee.Identifier", "Total.Salary", "Total.Benefits")]
+
+#  Standardize variables
+hier_data <- na.omit(hier_data)  
+library(caret)
+standardizer <- preProcess(hier_data, method = c("scale", "center"))
+hier_data <- predict(standardizer, hier_data)
+```
+
+## Question 8
+
+Try to obtain the distance matrix. What happens?
+
+Answer: It throws the error of "vector memory limit of 16.0 Gb reached, see mem.maxVSize()" which means that it can't give more memory for this because of the large dataset
+
+```{r}
+# R made me comment out all of this for me to render it 
+
+hier_data <- hier_data[, c("Employee.Identifier", "Total.Salary", "Total.Benefits")]
+# distance matrix
+#distance_matrix <- dist(hier_data)
+#distance_matrix
+```
+
+## Question 9
+
+Now keep only the first 200 rows of data with the three variables mentioned in Question 7. Obtain the distance matrix. Then Model with average linkage, single linkage, and complete linkage and plot the dendrograms. Notice that the dendrogram plots are not useful. What is the issue with the data that makes heirarchical clustering not useful?
+
+Answer: Because it demands computing and maintaining paired distances for every point, hierarchical clustering becomes computationally costly and ineffective when dealing with huge datasets. For datasets with a large number of observations, this renders it inappropriate.
+
+```{r}
+# Reducing memory usage to use only the first 200 rows 
+small_data <- hier_data[1:200, ]
+
+# Distance matrix
+dm <- dist(small_data)
+dm
+
+# Hierarchical clustering w avg linkage
+avg_link_model <- hclust(dm, method = "average")
+plot(avg_link_model, main = "Average Linkage Dendrogram", labels=small_data$Employee.Identifier)
+
+# Hierarchical clustering w single linkage
+single_link_model <- hclust(dm, method = "single")
+plot(single_link_model, main = "Single Linkage Dendrogram", labels=small_data$Employee.Identifier)
+
+# Hierarchical clustering w complete linkage
+complete_link_model <- hclust(dm, method = "complete")
+plot(complete_link_model, main = "Complete Linkage Dendrogram", labels=small_data$Employee.Identifier)
+```
+
